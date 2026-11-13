@@ -12,7 +12,7 @@ import { findWowInstalls, addonsDir as addonsDirOf, findWowProcess } from '../sr
 import { SlotBank, ADDON, CTL_LONG } from '../src/slots.js';
 import { StripCapture, SCREEN_PERMISSION_HELP } from '../src/capture.js';
 import { decodeImage } from '../src/codec.js';
-import { identify, discoverTailscale, mintRemote, revokeRemote, saveToken, readTokenData, tokenFile } from '../src/envs.js';
+import { identify, discoverTailscale, mintRemote, pairRemote, revokeRemote, saveToken, readTokenData, tokenFile } from '../src/envs.js';
 import { logonTask, supervise, stopWhenGone } from '../src/windows-service.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -513,6 +513,7 @@ async function cmdUninstall(args) {
   }
   for (const e of cfg.environments || []) {
     const tok = readTokenData(e.id);
+    if (tok?.token && !e.ssh) warn(`Revoke the bridge's session on ${e.label} there, under Settings > Connections.`);
     if (!tok?.sessionId || !e.ssh) continue;
     try {
       await revokeRemote(e.ssh, tok.sessionId);
@@ -554,15 +555,16 @@ async function cmdEnv(args) {
           }
         } catch {}
       }
-      console.log(`${C.b(e.label)} ${state} ${C.d(`· ssh ${e.ssh || '-'} · token ${tok?.expiresAt ? `until ${tok.expiresAt.slice(0, 10)}` : 'missing'}`)}`);
+      console.log(`${C.b(e.label)} ${state} ${C.d(`· ${e.ssh ? `ssh ${e.ssh}` : 'paired'} · token ${tok?.expiresAt ? `until ${tok.expiresAt.slice(0, 10)}` : 'missing'}`)}`);
     }
-    if (!cfg.environments.length) console.log(C.d('No other machines yet. Add one with: t3code-wow env add <tailscale or ssh host> [--url https://...]'));
+    if (!cfg.environments.length) console.log(C.d('No other machines yet. Add one with: t3code-wow env add <host> [--url https://...] [--pair <code>]'));
     return;
   }
   if (sub === 'add') {
     const host = args._[2];
-    if (!host) throw new Error('usage: t3code-wow env add <host> [--url https://...] [--ssh <ssh host>]');
-    const ssh = args.ssh ? String(args.ssh) : host;
+    if (!host) throw new Error('usage: t3code-wow env add <host> [--url https://...] [--ssh <ssh host> | --pair <code>]');
+    const pair = args.pair ? String(args.pair) : null;
+    const ssh = pair ? null : args.ssh ? String(args.ssh) : host;
     const urls = [];
     for (const u of [].concat(args.url || [])) urls.push(String(u).replace(/\/?$/, '/'));
     if (!urls.length) urls.push(...(await discoverTailscale(host)));
@@ -585,8 +587,9 @@ async function cmdEnv(args) {
     const local = JSON.parse(await (await fetch(new URL('/.well-known/t3/environment', JSON.parse(fs.readFileSync(path.join(process.env.T3CODE_HOME || path.join(os.homedir(), '.t3'), 'userdata', 'server-runtime.json'), 'utf8')).origin))).text());
     if (ident.environmentId === local.environmentId) throw new Error(`${host} is this computer`);
     console.log(`${C.g('✓')} Found ${C.b(ident.label)} (${ident.platform?.machine || 'machine'}, T3 Code ${ident.serverVersion}) at ${good.join(', ')}`);
-    process.stdout.write(`… Creating a T3 Code session on ${ident.label} over SSH (${ssh})\r`);
-    const tok = await mintRemote(ssh, `WoW bridge (${local.label || os.hostname()})`);
+    const label = `WoW bridge (${local.label || os.hostname()})`;
+    process.stdout.write(`… Creating a T3 Code session on ${ident.label} ${pair ? 'from the pairing code' : `over SSH (${ssh})`}\r`);
+    const tok = pair ? await pairRemote(good[0], pair, label) : await mintRemote(ssh, label);
     saveToken(ident.environmentId, tok);
     console.log(`${C.g('✓')} Session created on ${ident.label} ${C.d(`(revoke with t3code-wow env remove ${ident.label})`)}`);
     const existing = cfg.environments.find((e) => e.id === ident.environmentId);
@@ -612,6 +615,8 @@ async function cmdEnv(args) {
       } catch (err) {
         console.log(C.y(`Couldn't revoke the session on ${e.label} (${err.message}); remove it there under Settings > Connections.`));
       }
+    } else if (tok?.token) {
+      console.log(C.y(`Revoke the bridge's session on ${e.label} there, under Settings > Connections or with \`t3 auth session revoke ${tok.sessionId || '<id>'}\`.`));
     }
     fs.rmSync(tokenFile(e.id), { force: true });
     cfg.environments = cfg.environments.filter((x) => x !== e);
@@ -634,9 +639,9 @@ function help() {
   t3code-wow run [--verbose]
                      Run the bridge in the foreground (the service runs this)
   t3code-wow env [list]  Other T3 Code machines shown in game (T3 Connect / Tailscale)
-  t3code-wow env add <host> [--url https://...] [--ssh <ssh host>]
+  t3code-wow env add <host> [--url https://...] [--ssh <ssh host> | --pair <code>]
                      Show another machine's threads too (finds it on Tailscale,
-                     creates its session over SSH)
+                     creates its session over SSH, or from a \`t3 pair\` code there)
   t3code-wow env remove <name>
                      Stop showing a machine and revoke the bridge's session there
   t3code-wow probe       Capture the corner of the game window and try to read the strip

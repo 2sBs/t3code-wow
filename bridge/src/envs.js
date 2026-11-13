@@ -1,12 +1,15 @@
 // Other T3 Code machines (environments) the bridge also shows, e.g. ones you reach
 // through T3 Connect or Tailscale. The local server doesn't aggregate them (the
 // desktop app connects to each machine itself), so neither do we: one connection
-// per machine, each with its own session token minted on that machine over SSH.
+// per machine, each with its own session token, minted over SSH or from a pairing code.
 
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CONFIG_DIR } from './auth.js';
+import { CONFIG_DIR, tokenClaims } from './auth.js';
+
+export const SCOPES = ['orchestration:read', 'orchestration:operate'];
+export const PAIR_HINT = `on that machine run \`t3 pair ${SCOPES.map((s) => `--scope ${s}`).join(' ')}\`, then \`t3code-wow env add <name> --url <address> --pair <code>\``;
 
 const ENV_DIR = path.join(CONFIG_DIR, 'envs');
 const RENEW_BEFORE_MS = 7 * 24 * 3600 * 1000;
@@ -57,7 +60,7 @@ export async function mintRemote(sshHost, label = 'WoW bridge') {
   const remote = [
     'for t in "$HOME/.local/bin/t3" "$HOME/.t3/bin/t3" t3; do',
     '  if command -v "$t" >/dev/null 2>&1; then',
-    `    exec "$t" auth session issue --scope orchestration:read --scope orchestration:operate --ttl 30d --label "${label}" --json;`,
+    `    exec "$t" auth session issue ${SCOPES.map((s) => `--scope ${s}`).join(' ')} --ttl 30d --label "${label}" --json;`,
     '  fi;',
     'done; echo "t3 not found on this machine" >&2; exit 127',
   ].join(' ');
@@ -66,6 +69,32 @@ export async function mintRemote(sshHost, label = 'WoW bridge') {
   const json = JSON.parse(out.slice(start));
   if (!json.token) throw new Error(`no token in reply from ${sshHost}`);
   return json; // { sessionId, token, scopes, expiresAt }
+}
+
+// Trade a pairing code from `t3 pair` on that machine for a bearer session (RFC 8693).
+// Works through any address the machine answers at, including its T3 Connect relay.
+export async function pairRemote(url, code, label = 'WoW bridge') {
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+    subject_token: code,
+    subject_token_type: 'urn:t3:params:oauth:token-type:environment-bootstrap',
+    requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    scope: SCOPES.join(' '),
+    client_label: label,
+    client_device_type: 'bot',
+  });
+  const res = await fetch(new URL('/oauth/token', url), { method: 'POST', body, signal: AbortSignal.timeout(15000) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.access_token) {
+    const why = json.error_description || json.error || json.reason || `HTTP ${res.status}`;
+    throw new Error(`${new URL(url).host} refused the pairing code (${why}); codes last 5 minutes, so make a new one`);
+  }
+  return {
+    sessionId: tokenClaims(json.access_token)?.sid ?? null,
+    token: json.access_token,
+    scopes: json.scope.split(' '),
+    expiresAt: new Date(Date.now() + json.expires_in * 1000).toISOString(),
+  };
 }
 
 export async function revokeRemote(sshHost, sessionId) {
@@ -92,6 +121,7 @@ export function readTokenData(envId) {
 }
 
 // Token provider for a remote machine: renews over SSH a week before expiry.
+// A paired machine has no SSH, so it keeps its token until it expires.
 export function remoteTokenProvider(env, { log = () => {}, label } = {}) {
   let minting = null;
   let force = false;
@@ -100,8 +130,8 @@ export function remoteTokenProvider(env, { log = () => {}, label } = {}) {
     const expires = data?.expiresAt ? Date.parse(data.expiresAt) : 0;
     if (!data?.token || force || (expires && expires - Date.now() < RENEW_BEFORE_MS)) {
       if (!env.ssh) {
-        if (data?.token) return data.token;
-        throw new Error(`${env.label}: no token; run t3code-wow env add ${env.label}`);
+        if (data?.token && !force && (!expires || expires > Date.now())) return data.token;
+        throw new Error(`${env.label}: ${data?.token ? 'its session expired or was revoked' : 'no token'}; pair it again (${PAIR_HINT})`);
       }
       if (!minting) {
         log(`${env.label}: ${data?.token ? 'renewing' : 'minting'} its T3 session token over SSH`);

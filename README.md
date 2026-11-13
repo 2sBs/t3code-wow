@@ -104,13 +104,14 @@ This removes the addon and its update folders, its settings in the game, the bri
 - `/t3 new` starts a thread, `/t3 usage` opens the usage tab, `/t3 settings` the settings.
 - `/t3 unlock` lets you drag the tracker section somewhere else; Settings → Reset tracker puts it back under your quests.
 - To see threads from another machine on your tailnet, run `t3code-wow env add <host>`. It finds the machine's T3 Code over Tailscale and creates a session for the bridge over SSH.
+- To add a machine through T3 Connect instead, with no Tailscale or SSH, run `t3 pair --scope orchestration:read --scope orchestration:operate` on that machine, then `t3code-wow env add <name> --url <its T3 Connect address> --pair <code>` within 5 minutes. The session lasts 30 days; pair again when `t3code-wow env` says it has expired.
 
 ## Commands
 
 ```bash
 t3code-wow status         # what the bridge sees: T3 Code, the game, the screen link, the addon
 t3code-wow status --log   # the same, with recent log lines
-t3code-wow env            # other machines shown in game (add <host> / remove <name>)
+t3code-wow env            # other machines shown in game (add <host> [--pair <code>] / remove <name>)
 t3code-wow uninstall      # remove everything (see above)
 ```
 
