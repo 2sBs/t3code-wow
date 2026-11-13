@@ -591,7 +591,7 @@ async function cmdEnv(args) {
     process.stdout.write(`… Creating a T3 Code session on ${ident.label} ${pair ? 'from the pairing code' : `over SSH (${ssh})`}\r`);
     const tok = pair ? await pairRemote(good[0], pair, label) : await mintRemote(ssh, label);
     saveToken(ident.environmentId, tok);
-    console.log(`${C.g('✓')} Session created on ${ident.label} ${C.d(`(revoke with t3code-wow env remove ${ident.label})`)}`);
+    console.log(`${C.g('✓')} Session created on ${ident.label} ${C.d(pair ? `(until ${tok.expiresAt.slice(0, 10)}; revoke it there under Settings > Connections)` : `(revoke with t3code-wow env remove ${ident.label})`)}`);
     const existing = cfg.environments.find((e) => e.id === ident.environmentId);
     const used = new Set(cfg.environments.map((e) => e.code));
     let code = existing?.code;
