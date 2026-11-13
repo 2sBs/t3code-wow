@@ -28,7 +28,7 @@ Watch and run your [T3 Code](https://t3.codes) agent threads without leaving the
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.sh | bash
 ```
 
 It finds World of Warcraft: Forever in Omarchy's Battle.net, in the prefixes Faugus Launcher and Lutris recorded, or wherever Battle.net installed it (for anything unusual, add `bash -s -- --wow "/path/to/World of Warcraft"`). It installs the addon into the game, gives the bridge a T3 Code session limited to reading and running threads, and starts the bridge as the `t3code-wow` user service.
@@ -44,7 +44,7 @@ On Windows the command is different. See [Windows](#windows).
 Run the same install command again:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.sh | bash
 ```
 
 It downloads the latest version, replaces the installed copy and restarts the bridge, keeping your settings, T3 Code session and machines. Then type `/reload` in game; the installer tells you when an update needs a full game restart instead. To install a specific release, pipe to `T3CODE_WOW_REF=v0.2.0 bash` instead of `bash`. From a clone, `git pull` and run `./install.sh` again.
@@ -65,13 +65,13 @@ The bridge also runs on Windows 10 and 11, with the native WoW: Forever client. 
 Install Node.js 22 first (`winget install OpenJS.NodeJS.LTS`, then open a new PowerShell window). Then run this in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.ps1 | iex
 ```
 
 The installer finds the game wherever Battle.net installed it, and needs no administrator rights. It installs the addon into the game, gives the bridge a T3 Code session limited to reading and running threads, and registers the bridge as the `t3code-wow` task in Task Scheduler. That task starts the bridge each time you sign in. If the game is somewhere unusual, pass its folder:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.ps1))) --wow "D:\Games\World of Warcraft"
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.ps1))) --wow "D:\Games\World of Warcraft"
 ```
 
 - **In the background.** The bridge runs without a window, and starts again 3 seconds after it stops for any reason. Its log is `%USERPROFILE%\.local\state\t3code-wow\bridge.log`, and `t3code-wow status --log` shows the latest lines.

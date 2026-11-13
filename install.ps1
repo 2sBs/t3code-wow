@@ -1,6 +1,6 @@
 # Install or update T3 Code for World of Warcraft on Windows.
 #
-#   irm https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.ps1 | iex
 #
 # Run the same command again to update. From a clone:
 #
@@ -9,7 +9,7 @@
 # Options are the ones install.sh takes: --wow "D:\Games\World of Warcraft" --slots N --no-service
 # `irm | iex` can't carry options, so with options the one-liner is:
 #
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/ryanrhughes/t3code-wow/main/install.ps1))) --wow "D:\Games\World of Warcraft"
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/2sBs/t3code-wow/main/install.ps1))) --wow "D:\Games\World of Warcraft"
 #
 # Copies the bridge and addon to %USERPROFILE%\.local\share\t3code-wow, puts a
 # `t3code-wow` command on your PATH, then runs `t3code-wow install`, which installs the
@@ -25,7 +25,7 @@ try {
     # Invoke-WebRequest is many times slower in PowerShell 5.1 while it draws its progress bar.
     $ProgressPreference = 'SilentlyContinue'
 
-    $repo = 'ryanrhughes/t3code-wow'
+    $repo = '2sBs/t3code-wow'
     $ref = if ($env:T3CODE_WOW_REF) { $env:T3CODE_WOW_REF } else { 'main' }
     $dataHome = if ($env:XDG_DATA_HOME) { $env:XDG_DATA_HOME } else { Join-Path $env:USERPROFILE '.local\share' }
     $dest = Join-Path $dataHome 't3code-wow'
